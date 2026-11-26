@@ -64,3 +64,112 @@ describe('POST /habilitados - lógica funcional', () => {
     expect(res.body.map((curso) => curso.id)).toEqual(await idsDe([]));
   });
 });
+
+const ERROR_JSON = 'el cuerpo debe ser JSON válido';
+const ERROR_TIPO = 'Content-Type debe ser application/json';
+const ERROR_ARREGLO = 'aprobados debe ser un arreglo';
+const ERROR_CODIGO = 'cada elemento de aprobados debe ser un código de curso válido';
+const ERROR_LIMITE = 'aprobados admite como máximo 100 códigos';
+
+const enviarTexto = (tipo, texto) => request(app)
+  .post('/habilitados')
+  .set('Content-Type', tipo)
+  .send(texto);
+const codigos = (cantidad) => Array(cantidad).fill('1INF25');
+
+function esperarError(res, status, error) {
+  expect(res.status).toBe(status);
+  expect(res.body).toEqual({ error });
+}
+
+describe('POST /habilitados - validación de entrada', () => {
+  test('2.1 rechaza JSON mal formado', async () => {
+    esperarError(await enviarTexto('application/json', '{aprobados:['), 400, ERROR_JSON);
+  });
+
+  test('2.2 rechaza un Content-Type distinto de application/json', async () => {
+    esperarError(await enviarTexto('text/plain', '{"aprobados":[]}'), 400, ERROR_TIPO);
+  });
+
+  test.each([
+    ['un texto', { aprobados: '1INF25' }],
+    ['null', { aprobados: null }],
+    ['un campo ausente', {}],
+  ])('2.3 rechaza aprobados con %s', async (_caso, cuerpo) => {
+    esperarError(await request(app).post('/habilitados').send(cuerpo), 400, ERROR_ARREGLO);
+  });
+
+  test.each([
+    ['caracteres no permitidos', ['1INF30<script>']],
+    ['minúsculas', ['1inf25']],
+    ['espacios', [' 1INF25']],
+    ['números', [1, 2, 3]],
+  ])('2.4 rechaza códigos con %s sin repetir el valor', async (_caso, aprobados) => {
+    const res = await consultar(aprobados);
+
+    esperarError(res, 400, ERROR_CODIGO);
+    expect(res.text).not.toContain('<script>');
+  });
+
+  test('caso 1: sin cuerpo y con Content-Type JSON pide el arreglo', async () => {
+    const res = await request(app).post('/habilitados').set('Content-Type', 'application/json');
+
+    esperarError(res, 400, ERROR_ARREGLO);
+  });
+
+  test('caso 1b: sin cuerpo ni Content-Type pide application/json', async () => {
+    esperarError(await request(app).post('/habilitados'), 400, ERROR_TIPO);
+  });
+});
+
+describe('POST /habilitados - límites de entrada', () => {
+  test('3.1 rechaza 101 elementos', async () => {
+    esperarError(await consultar(codigos(101)), 400, ERROR_LIMITE);
+  });
+
+  test('3.1 los duplicados cuentan para el límite', async () => {
+    const unicos = Array.from({ length: 91 }, (_, i) => `ABC${String(i).padStart(3, '0')}`);
+
+    esperarError(await consultar([...unicos, ...unicos.slice(0, 10)]), 400, ERROR_LIMITE);
+  });
+
+  test('3.2 acepta exactamente 100 elementos', async () => {
+    expect((await consultar(codigos(100))).status).toBe(200);
+  });
+
+  test('3.3 responde 400 a 5000 elementos en menos de 1000 ms', async () => {
+    const inicio = Date.now();
+    const res = await consultar(codigos(5000));
+
+    expect(Date.now() - inicio).toBeLessThan(1000);
+    esperarError(res, 400, ERROR_LIMITE);
+  });
+
+  test('caso 11: rechaza con 413 un cuerpo mayor a 50 KB', async () => {
+    esperarError(await consultar(codigos(7000)), 413, 'el cuerpo supera el tamaño máximo permitido');
+  });
+});
+
+describe('POST /habilitados - errores internos', () => {
+  const fallo = new Error('fallo simulado en C:\apps\malla\src\data');
+  let registro;
+
+  beforeEach(() => {
+    registro = jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(repositorio, 'listarHabilitados').mockImplementation(() => {
+      throw fallo;
+    });
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  test('4.1 responde 500 sin detalles internos', async () => {
+    esperarError(await consultar([]), 500, 'error interno');
+  });
+
+  test('4.2 registra el error con console.error', async () => {
+    await consultar([]);
+
+    expect(registro).toHaveBeenCalledWith(fallo);
+  });
+});

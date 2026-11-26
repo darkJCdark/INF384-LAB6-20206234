@@ -35,33 +35,33 @@ Plan de implementación para el endpoint `POST /habilitados`, que calcula qué c
     - `2.5 ignora un código con formato válido que no existe en el repositorio` — `aprobados: ["XXX999"]` → 200, `XXX999` ignorado
     - _Requisitos: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.5_
 
-- [ ] 2. Escribir las pruebas de validación, límite y errores
+- [x] 2. Escribir las pruebas de validación, límite y errores
   - Agregar en `tests/habilitados.test.js` las pruebas de los criterios 2.1 a 2.4, 3.1 a 3.3, 4.1 y 4.2, más los casos sin cuerpo (con y sin `Content-Type` correcto), duplicados sobre el límite y cuerpo mayor a 50 KB. No modificar nada en `src/`. Las pruebas de lo que aún no está implementado deben fallar: no omitirlas ni ajustarlas para que pasen.
-  - [ ] 2.1 Agregar pruebas de validación de JSON y Content-Type en `tests/habilitados.test.js`
+  - [x] 2.1 Agregar pruebas de validación de JSON y Content-Type en `tests/habilitados.test.js`
     - `2.1a rechaza JSON mal formado con 400 y mensaje "el cuerpo debe ser JSON válido"` — cuerpo `{aprobados:[`, `Content-Type: application/json` → 400 `{"error":"el cuerpo debe ser JSON válido"}`
     - `2.1b rechaza body ausente con Content-Type correcto con 400 y mensaje "aprobados debe ser un arreglo"` — sin cuerpo, `Content-Type: application/json` → 400 `{"error":"aprobados debe ser un arreglo"}`
     - `2.2 rechaza Content-Type incorrecto con 400 y mensaje "Content-Type debe ser application/json"` — `Content-Type: text/plain` → 400 `{"error":"Content-Type debe ser application/json"}`
     - `2.2b rechaza body ausente sin Content-Type con 400 y mensaje "Content-Type debe ser application/json"` — sin cuerpo, sin `Content-Type` correcto → 400 `{"error":"Content-Type debe ser application/json"}`
     - _Requisitos: 2.1, 2.2_
-  - [ ] 2.2 Agregar pruebas de validación del campo `aprobados` en `tests/habilitados.test.js`
+  - [x] 2.2 Agregar pruebas de validación del campo `aprobados` en `tests/habilitados.test.js`
     - `2.3a rechaza aprobados como cadena con 400 y mensaje "aprobados debe ser un arreglo"` — `{"aprobados":"1INF25"}` → 400 `{"error":"aprobados debe ser un arreglo"}`
     - `2.3b rechaza aprobados null con 400 y mensaje "aprobados debe ser un arreglo"` — `{"aprobados":null}` → 400 `{"error":"aprobados debe ser un arreglo"}`
     - `2.3c rechaza elemento no-texto con 400 y mensaje de código inválido` — `{"aprobados":[1,2,3]}` → 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}`
     - `2.4a rechaza elemento con caracteres no permitidos sin reflejar el valor` — `{"aprobados":["1INF30<script>"]}` → 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}`, cuerpo no contiene `<script>`
     - `2.4b rechaza código en minúsculas` — `{"aprobados":["1inf25"]}` → 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}`
     - _Requisitos: 2.3, 2.4_
-  - [ ] 2.3 Agregar pruebas de límite de entrada en `tests/habilitados.test.js`
+  - [x] 2.3 Agregar pruebas de límite de entrada en `tests/habilitados.test.js`
     - `3.1 rechaza arreglo de 101 elementos con 400 y mensaje de límite` — 101 códigos válidos → 400 `{"error":"aprobados admite como máximo 100 códigos"}`
     - `3.2 acepta exactamente 100 elementos válidos con 200` — 100 códigos válidos → 200
     - `3.3 responde 400 en menos de 1000 ms para un arreglo de 5000 elementos` — 5000 códigos → 400 en < 1000 ms
     - `3.extra duplicados sobre el límite: 101 recibidos con 10 duplicados reciben 400` — arreglo de 101 elementos (10 duplicados, 91 únicos) → 400 `{"error":"aprobados admite como máximo 100 códigos"}`
     - `3.extra2 rechaza cuerpo mayor a 50 KB con 413` — cuerpo JSON > 50 KB → 413 `{"error":"el cuerpo supera el tamaño máximo permitido"}`
     - _Requisitos: 3.1, 3.2, 3.3_
-  - [ ] 2.4 Agregar pruebas de errores internos en `tests/habilitados.test.js`
+  - [x] 2.4 Agregar pruebas de errores internos en `tests/habilitados.test.js`
     - `4.1 error no controlado responde 500 sin stack trace` — mock de `repositorio.listarHabilitados` lanzando `new Error('fallo')` → 500 `{"error":"error interno"}`, cuerpo no contiene `stack`, rutas ni nombres de dependencias
     - `4.2 error no controlado llama a console.error con el error` — mismo mock + spy de `console.error` → `console.error` llamado con el error
     - _Requisitos: 4.1, 4.2_
-  - [ ] 2.5 Ejecutar `npx jest tests/habilitados.test.js --no-coverage` e informar los nombres exactos de las pruebas que fallan (expected) y las que ya pasan
+  - [x] 2.5 Ejecutar `npx jest tests/habilitados.test.js --no-coverage` e informar los nombres exactos de las pruebas que fallan (expected) y las que ya pasan
     - _Requisitos: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2_
 
 - [ ] 3. Implementar validaciones de entrada, límite de 50 KB y manejo de errores
