@@ -10,10 +10,11 @@ Este documento describe los requisitos del endpoint `POST /habilitados`, que per
 - **Repositorio**: El módulo `src/data/repositorio.js` que provee acceso a los datos de `data/cursos.json`.
 - **Curso**: Unidad académica con identificador único (`id`), nombre, créditos, ciclo y lista de requisitos previos.
 - **Código_de_curso**: Cadena de texto que identifica de forma única a un curso (por ejemplo, `1INF25`).
+- **Código_válido**: Cadena que cumple la expresión regular `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$` (por ejemplo `1INF25` o `INF001`).
 - **Aprobados**: Arreglo de códigos de curso que el estudiante ya aprobó, proporcionado en el cuerpo de la solicitud.
 - **Curso_habilitado**: Curso que no figura en `aprobados` y cuyos requisitos previos están todos contenidos en `aprobados`.
 - **Validador**: Componente interno que verifica el tipo y contenido del cuerpo de la solicitud antes de procesarla.
-- **Límite_de_entrada**: Cantidad máxima de códigos permitidos en el arreglo `aprobados` (500 elementos).
+- **Límite_de_entrada**: Cantidad máxima de códigos permitidos en el arreglo `aprobados` (100 elementos, ya que la malla tiene 87 cursos y 100 deja margen).
 
 ## Requirements
 
@@ -23,43 +24,41 @@ Este documento describe los requisitos del endpoint `POST /habilitados`, que per
 
 #### Criterios de aceptación
 
-1. WHEN el cliente envía `POST /habilitados` con un arreglo `aprobados` válido, THE API SHALL responder con código HTTP 200 y un arreglo JSON de cursos habilitados.
-2. WHEN el arreglo `aprobados` incluye los códigos `1INF25`, `1INF27` e `1INF49`, THE API SHALL incluir en la respuesta exactamente 27 cursos habilitados.
-3. WHEN el arreglo `aprobados` incluye los códigos `1INF25`, `1INF27` e `1INF49`, THE API SHALL incluir en la respuesta los cursos con códigos `1INF29`, `1INF30`, `1INF31` y `1INF32`.
-4. WHEN un curso tiene todos sus requisitos previos contenidos en `aprobados`, THE API SHALL incluir ese curso en la respuesta, siempre que el curso no figure en `aprobados`.
-5. WHEN un curso no tiene requisitos previos y no figura en `aprobados`, THE API SHALL incluir ese curso en la respuesta.
-6. WHEN un curso figura en `aprobados`, THE API SHALL excluir ese curso de la respuesta, aunque todos sus requisitos previos también figuren en `aprobados`.
-7. WHEN al menos un requisito previo de un curso no figura en `aprobados`, THE API SHALL excluir ese curso de la respuesta.
-8. WHEN el arreglo `aprobados` está vacío, THE API SHALL devolver en la respuesta únicamente los cursos que no tienen requisitos previos y que existen en el Repositorio.
-9. THE API SHALL incluir en cada elemento de la respuesta los campos `id`, `name`, `credits`, `cycle` y `type` del curso habilitado.
-10. THE Repositorio SHALL ser la única fuente de datos consultada para determinar los cursos habilitados.
+1. CUANDO el cliente envía `POST /habilitados` con un arreglo `aprobados` válido, EL sistema DEBE responder con código HTTP 200 y un arreglo JSON de cursos habilitados.
+2. CUANDO el arreglo `aprobados` incluye los códigos `1INF25`, `1INF27` e `1INF49`, EL sistema DEBE incluir en la respuesta exactamente 27 cursos habilitados.
+3. CUANDO el arreglo `aprobados` incluye los códigos `1INF25`, `1INF27` e `1INF49`, EL sistema DEBE incluir en la respuesta los cursos con códigos `1INF29`, `1INF30`, `1INF31` y `1INF32`.
+4. CUANDO un curso tiene todos sus requisitos previos contenidos en `aprobados`, EL sistema DEBE incluir ese curso en la respuesta, siempre que el curso no figure en `aprobados`.
+5. CUANDO un curso no tiene requisitos previos y no figura en `aprobados`, EL sistema DEBE incluir ese curso en la respuesta.
+6. CUANDO un curso figura en `aprobados`, EL sistema DEBE excluir ese curso de la respuesta, aunque todos sus requisitos previos también figuren en `aprobados`.
+7. CUANDO al menos un requisito previo de un curso no figura en `aprobados`, EL sistema DEBE excluir ese curso de la respuesta.
+8. CUANDO el arreglo `aprobados` está vacío, EL sistema DEBE devolver en la respuesta únicamente los cursos que no tienen requisitos previos y que existen en el Repositorio.
+9. EL sistema DEBE incluir en cada elemento de la respuesta los campos `id`, `name`, `credits`, `cycle` y `type` del curso habilitado.
 
 ---
 
 ### Requisito 2: Validación del cuerpo de la solicitud
 
-**Historia de usuario:** Como operador de la API, quiero que el endpoint rechace solicitudes malformadas antes de procesarlas, para evitar comportamientos incorrectos y vulnerabilidades de seguridad.
+**Historia de usuario:** Como operador de la API, quiero que el endpoint rechace solicitudes malformadas antes de procesarlas, para evitar comportamientos incorrectos.
 
 #### Criterios de aceptación
 
-1. WHEN el cuerpo de la solicitud no contiene el campo `aprobados`, THE Validador SHALL responder con código HTTP 400 y un mensaje de error descriptivo en JSON.
-2. WHEN el campo `aprobados` no es un arreglo, THE Validador SHALL responder con código HTTP 400 y un mensaje de error descriptivo en JSON.
-3. WHEN el arreglo `aprobados` contiene algún elemento que no es una cadena de texto, THE Validador SHALL responder con código HTTP 400 y un mensaje de error descriptivo en JSON.
-4. WHEN el cuerpo de la solicitud tiene tipo de contenido distinto de `application/json`, THE Validador SHALL responder con código HTTP 400 y un mensaje de error descriptivo en JSON.
-5. WHEN el arreglo `aprobados` contiene un código que no existe en el Repositorio, THE API SHALL ignorar ese código sin producir un error, y continuar el cálculo con los códigos válidos restantes.
-6. THE Validador SHALL sanitizar cada elemento del arreglo `aprobados` tratándolo exclusivamente como identificador opaco, sin interpretar ni reflejar su contenido como HTML o código ejecutable.
+1. SI el cuerpo de la solicitud no es JSON válido, EL sistema DEBE responder 400 con `{"error":"el cuerpo debe ser JSON válido"}`.
+2. SI el encabezado `Content-Type` de la solicitud no es `application/json`, EL sistema DEBE responder 400 con `{"error":"Content-Type debe ser application/json"}`.
+3. SI el cuerpo no contiene el campo `aprobados` o `aprobados` no es un arreglo, EL sistema DEBE responder 400 con `{"error":"aprobados debe ser un arreglo"}`.
+4. SI algún elemento de `aprobados` no es una cadena de texto o no cumple la expresión regular `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$`, EL sistema DEBE responder 400 con `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` sin incluir el valor recibido en la respuesta.
+5. CUANDO el arreglo `aprobados` contiene un código con formato válido que no existe en los datos del Repositorio, EL sistema DEBE ignorarlo y continuar el cálculo con los códigos restantes.
 
 ---
 
-### Requisito 3: Protección contra denegación de servicio por entradas grandes
+### Requisito 3: Protección contra entradas grandes
 
 **Historia de usuario:** Como operador de la API, quiero que el endpoint rechace arreglos excesivamente grandes, para evitar que una sola solicitud monopolice los recursos del servicio.
 
 #### Criterios de aceptación
 
-1. WHEN el arreglo `aprobados` contiene más de 500 elementos, THE Validador SHALL responder con código HTTP 400 y un mensaje de error que indique que se superó el límite de entrada, sin procesar el arreglo.
-2. WHEN el arreglo `aprobados` contiene exactamente 500 elementos válidos, THE API SHALL procesar la solicitud normalmente y responder con código HTTP 200.
-3. THE API SHALL responder a cualquier solicitud válida de `POST /habilitados` en un tiempo máximo de 2 000 ms bajo carga normal de un solo usuario.
+1. SI el arreglo `aprobados` tiene más de 100 elementos, EL sistema DEBE responder 400 con `{"error":"aprobados admite como máximo 100 códigos"}`.
+2. CUANDO el arreglo `aprobados` tiene exactamente 100 elementos válidos, EL sistema DEBE responder 200.
+3. CUANDO el cliente envía un arreglo `aprobados` con 5000 elementos, EL sistema DEBE responder con 400 en menos de 1000 ms.
 
 ---
 
@@ -69,19 +68,19 @@ Este documento describe los requisitos del endpoint `POST /habilitados`, que per
 
 #### Criterios de aceptación
 
-1. WHEN ocurre un error no controlado durante el procesamiento de `POST /habilitados`, THE API SHALL responder con código HTTP 500 y el cuerpo `{"error": "error interno"}`, sin incluir stack traces ni rutas del sistema de archivos.
-2. WHEN el Validador rechaza una solicitud con código HTTP 400, THE API SHALL incluir únicamente un mensaje de error descriptivo para el cliente, sin exponer detalles de implementación interna.
-3. THE API SHALL registrar los detalles completos del error (incluyendo stack trace) en los logs del servidor, sin transmitirlos al cliente.
+1. SI ocurre un error no controlado durante el procesamiento de `POST /habilitados`, EL sistema DEBE responder 500 con `{"error":"error interno"}` sin incluir stack trace, rutas del sistema de archivos ni nombres de dependencias en el cuerpo de la respuesta.
+2. SI ocurre un error no controlado, EL sistema DEBE registrar el error y su stack trace con `console.error` en el proceso del servidor.
 
 ---
 
-### Requisito 5: Calidad del código y la cadena de suministro
+### Requisito 5: Política de integración continua
 
-**Historia de usuario:** Como equipo de desarrollo, quiero que el código del endpoint cumpla las políticas de calidad del proyecto para que pueda integrarse a la rama principal.
+**Historia de usuario:** Como equipo de desarrollo, quiero que el pipeline de CI bloquee cambios que introduzcan vulnerabilidades o bajen la cobertura, para mantener la calidad del código.
+
+**Clasificación:** los criterios 5.1 y 5.2 son requisitos de seguridad de la política; el criterio 5.3 (cobertura de líneas) es el requisito de calidad.
 
 #### Criterios de aceptación
 
-1. THE API SHALL no introducir dependencias npm con vulnerabilidades de severidad alta o crítica según `npm audit`.
-2. THE API SHALL no contener secretos (tokens, contraseñas, claves privadas) en el repositorio, verificado mediante análisis estático de secretos.
-3. WHEN se ejecuta la suite de pruebas del proyecto, THE API SHALL mantener una cobertura de líneas no inferior al 80 % en el conjunto total de archivos del proyecto.
-4. WHEN se ejecuta la suite de pruebas para el módulo de `POST /habilitados`, THE API SHALL contar con pruebas que cubran: el caso base con arreglo no vacío, el caso con arreglo vacío, el rechazo de tipos incorrectos, el rechazo de arreglos que superen el Límite_de_entrada, y el manejo de errores internos.
+1. SI `npm audit` reporta una vulnerabilidad de severidad alta o crítica, EL pipeline DEBE fallar.
+2. SI `gitleaks` detecta un secreto en el repositorio, EL pipeline DEBE fallar.
+3. SI la cobertura de líneas del proyecto es menor al 80 %, EL pipeline DEBE fallar.
