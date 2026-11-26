@@ -112,29 +112,13 @@ describe('GET /cursos', () => {
 
   // Req 1.3 — ciclo inválido produce 400
   describe('con ?ciclo=N inválido', () => {
-    test('?ciclo=4 (fuera de rango) → 400 con mensaje de error', async () => {
-      const res = await request(app).get('/cursos?ciclo=4');
-
-      expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'ciclo debe ser un entero entre 5 y 10' });
-    });
-
-    test('?ciclo=11 (fuera de rango) → 400', async () => {
-      const res = await request(app).get('/cursos?ciclo=11');
-
-      expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'ciclo debe ser un entero entre 5 y 10' });
-    });
-
-    test('?ciclo=abc (no numérico) → 400', async () => {
-      const res = await request(app).get('/cursos?ciclo=abc');
-
-      expect(res.status).toBe(400);
-      expect(res.body).toEqual({ error: 'ciclo debe ser un entero entre 5 y 10' });
-    });
-
-    test('?ciclo=6.5 (decimal) → 400', async () => {
-      const res = await request(app).get('/cursos?ciclo=6.5');
+    test.each([
+      ['4', 'fuera de rango'],
+      ['11', 'fuera de rango'],
+      ['abc', 'no numérico'],
+      ['6.5', 'decimal'],
+    ])('?ciclo=%s (%s) → 400 con mensaje de error', async (ciclo) => {
+      const res = await request(app).get(`/cursos?ciclo=${ciclo}`);
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: 'ciclo debe ser un entero entre 5 y 10' });
