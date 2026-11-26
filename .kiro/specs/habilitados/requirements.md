@@ -16,6 +16,17 @@ Este documento describe los requisitos del endpoint `POST /habilitados`, que per
 - **Validador**: Componente interno que verifica el tipo y contenido del cuerpo de la solicitud antes de procesarla.
 - **Límite_de_entrada**: Cantidad máxima de códigos permitidos en el arreglo `aprobados` (100 elementos, ya que la malla tiene 87 cursos y 100 deja margen).
 
+## Requisitos de seguridad y calidad
+
+| Origen | Requisito |
+| --- | --- |
+| Hallazgo 1: una lista de 5 000 códigos dejó el servicio sin responder 40 s | Requisito 3 (3.1, 3.2 y 3.3) |
+| Hallazgo 2: `1INF30<script>` respondió 500 con el stack trace y la ruta | 2.4 y Requisito 4 (4.1 y 4.2) |
+| Hallazgo 3: un texto en lugar de una lista respondió 200 | 2.3 |
+| Política de TI: dependencias y secretos | 5.1 y 5.2 |
+| Política de TI: cobertura (**requisito de calidad**) | 5.3 |
+| Análisis estático de seguridad (extra) | 5.4 |
+
 ## Requirements
 
 ### Requisito 1: Consulta de cursos habilitados
@@ -77,10 +88,11 @@ Este documento describe los requisitos del endpoint `POST /habilitados`, que per
 
 **Historia de usuario:** Como equipo de desarrollo, quiero que el pipeline de CI bloquee cambios que introduzcan vulnerabilidades o bajen la cobertura, para mantener la calidad del código.
 
-**Clasificación:** los criterios 5.1 y 5.2 son requisitos de seguridad de la política; el criterio 5.3 (cobertura de líneas) es el requisito de calidad.
+**Clasificación:** los criterios 5.1, 5.2 y 5.4 son requisitos de seguridad; el criterio 5.3 (cobertura de líneas) es el requisito de calidad.
 
 #### Criterios de aceptación
 
 1. SI `npm audit` reporta una vulnerabilidad de severidad alta o crítica, EL pipeline DEBE fallar.
 2. SI `gitleaks` detecta un secreto en el repositorio, EL pipeline DEBE fallar.
 3. SI la cobertura de líneas del proyecto es menor al 80 %, EL pipeline DEBE fallar.
+4. SI el análisis estático de seguridad con las reglas de `.semgrep/reglas.yml` detecta un hallazgo en `src/`, EL pipeline DEBE fallar.

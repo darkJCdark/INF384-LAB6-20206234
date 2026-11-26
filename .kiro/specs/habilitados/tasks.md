@@ -69,8 +69,8 @@ Plan de implementación para el endpoint `POST /habilitados`, que calcula qué c
   - [x] 3.1 Actualizar `app.use(express.json())` a `app.use(express.json({ limit: '50kb' }))` en `src/app.js`
     - _Requisitos: 3.1_
   - [x] 3.2 Ampliar el middleware de error en `src/app.js`
-    - Interceptar `SyntaxError` con `err.status === 400` → responder 400 `{"error":"el cuerpo debe ser JSON válido"}`
-    - Interceptar `err.status === 413 || err.type === 'entity.too.large'` → responder 413 `{"error":"el cuerpo supera el tamaño máximo permitido"}`
+    - Interceptar `err.type === 'entity.parse.failed'` (JSON mal formado) → responder 400 `{"error":"el cuerpo debe ser JSON válido"}`
+    - Interceptar `err.type === 'entity.too.large'` → responder 413 `{"error":"el cuerpo supera el tamaño máximo permitido"}`
     - Para cualquier otro error: llamar `console.error(err)` y responder 500 `{"error":"error interno"}`
     - _Requisitos: 2.1, 4.1, 4.2_
   - [x] 3.3 Agregar las validaciones en `src/routes/habilitados.js` en el orden exacto del diseño
@@ -86,13 +86,23 @@ Plan de implementación para el endpoint `POST /habilitados`, que calcula qué c
   - [x] 3.5 Ejecutar `npx jest --no-coverage` (suite completa) y verificar que las pruebas preexistentes siguen pasando
     - _Requisitos: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2_
 
+- [x] 4. Gates de CI de la política (requisito 5)
+  - [x] 4.1 Gate de cobertura: `coverageThreshold` de 80 % de líneas en `jest.config.js` y `npm test -- --coverage` en el job `build` de `.github/workflows/ci.yml`
+    - _Requisitos: 5.3_
+  - [x] 4.2 Gate de SCA: job `sca` con `npm audit --audit-level=high`; actualizar `lodash` a 4.18.1
+    - _Requisitos: 5.1_
+  - [x] 4.3 Gate de secretos: job `secretos` con gitleaks v8.24.3 sobre todo el historial; retirar la clave de `config/ejemplo.env` y registrar su fingerprint en `.gitleaksignore`
+    - _Requisitos: 5.2_
+  - [x] 4.4 Gate de SAST: job `sast` con Semgrep 1.183.0 y las reglas de `.semgrep/reglas.yml`
+    - _Requisitos: 5.4_
+
 ## Notes
 
 - Las subtareas de la Tarea 1 no incluyen ninguna validación de entrada; el router responde solo a solicitudes bien formadas hasta que la Tarea 3 las agrega.
 - Las pruebas de validación de la Tarea 2 deben escribirse antes de implementar las validaciones; se espera que fallen inicialmente.
 - El orden de las validaciones en `src/routes/habilitados.js` debe seguir exactamente la tabla de la sección "Orden de validaciones" de `design.md`.
 - No se agregan nuevas dependencias de npm.
-- Los gates de CI (Requisito 5) se implementan por separado y no están incluidos en este plan.
+- Los gates de CI (Requisito 5) se agregaron como tarea 4, después de implementar el endpoint.
 
 ## Task Dependency Graph
 
@@ -107,7 +117,8 @@ Plan de implementación para el endpoint `POST /habilitados`, que calcula qué c
     { "id": 5, "tasks": ["2.5"] },
     { "id": 6, "tasks": ["3.1", "3.2", "3.3"] },
     { "id": 7, "tasks": ["3.4"] },
-    { "id": 8, "tasks": ["3.5"] }
+    { "id": 8, "tasks": ["3.5"] },
+    { "id": 9, "tasks": ["4.1", "4.2", "4.3", "4.4"] }
   ]
 }
 ```

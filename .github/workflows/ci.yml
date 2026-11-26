@@ -50,3 +50,16 @@ jobs:
 
       - name: Detectar secretos con gitleaks
         run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --redact --verbose
+
+  # Gate SAST (requisito 5.4): las reglas propias bloquean; p/javascript solo avisa.
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SAST informativo con p/javascript (solo avisa)
+        continue-on-error: true
+        run: docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.183.0 semgrep scan --config p/javascript --metrics=off --disable-version-check src/
+
+      - name: SAST bloqueante con reglas propias
+        run: docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.183.0 semgrep scan --config .semgrep/reglas.yml --error --metrics=off --disable-version-check src/

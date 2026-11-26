@@ -184,10 +184,10 @@ El middleware de error centralizado en `src/app.js` debe distinguir tres categor
 
 ```
 app.use((err, req, res, next) => {
-  if (err instanceof SyntaxError && err.status === 400) {
+  if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'el cuerpo debe ser JSON válido' });
   }
-  if (err.status === 413 || err.type === 'entity.too.large') {
+  if (err.type === 'entity.too.large') {
     return res.status(413).json({ error: 'el cuerpo supera el tamaño máximo permitido' });
   }
   console.error(err);
@@ -197,8 +197,7 @@ app.use((err, req, res, next) => {
 
 **Decisiones de diseño:**
 
-- El bloque `SyntaxError` intercepta únicamente los errores de parseo de JSON lanzados por `express.json()`, que llevan `status: 400`. Un `SyntaxError` de otro origen no tiene `status: 400` y cae al bloque genérico 500.
-- El bloque 413 intercepta tanto `err.status === 413` como `err.type === 'entity.too.large'` para cubrir distintas versiones de la biblioteca `body-parser` subyacente.
+- Se distingue por `err.type`, que `body-parser` (usado por `express.json()`) asigna a sus errores: `entity.parse.failed` para JSON mal formado y `entity.too.large` para un cuerpo mayor al límite. Un error de otro origen no tiene ese tipo y cae al bloque genérico 500.
 - El bloque genérico llama a `console.error(err)` antes de responder, cumpliendo el Req 4.2.
 - El cuerpo de la respuesta de error nunca incluye el stack trace, rutas del sistema de archivos ni nombres de dependencias, cumpliendo el Req 4.1.
 - Los endpoints GET existentes (`GET /cursos`, `GET /cursos/:codigo`, `GET /health`) no producen errores de parseo ni de tamaño; el comportamiento de esos endpoints no cambia.
@@ -217,7 +216,7 @@ app.use((err, req, res, next) => {
 
 ## Gates de integración continua
 
-El pipeline de CI debe implementar tres gates que bloquean el merge cuando no se cumplen los criterios de calidad y seguridad definidos.
+El pipeline de CI debe implementar cuatro gates que bloquean el merge cuando no se cumplen los criterios de calidad y seguridad definidos.
 
 ### Gate 1 — Análisis de composición de software (SCA)
 
@@ -251,6 +250,18 @@ El pipeline de CI debe implementar tres gates que bloquean el merge cuando no se
   - **Razón:** un umbral que no bloquea no es un gate; la cobertura puede degradarse silenciosamente sin que nadie lo note hasta que el daño es acumulado.
 - **Etapa:** en cada pull request hacia `main` y en cada push directo a `main`.
   - **Razón:** detectar antes del merge evita que código sin cobertura suficiente llegue a la rama principal; correr también en push a `main` cubre los cambios directos.
+
+### Gate 4 — Análisis estático de seguridad (SAST) *(extra)*
+
+- **Herramienta:** Semgrep `1.183.0` (imagen `semgrep/semgrep:1.183.0`, versión fijada) sobre `src/`.
+- **Umbral:** falla con un solo hallazgo de las reglas propias de `.semgrep/reglas.yml`, todas de severidad ERROR: respuesta HTTP que incluye `err.stack` o `err.message` (hallazgo 2, criterio 4.1) y evaluación dinámica de código (`eval`, `new Function`).
+  - **Razón del umbral:** son patrones de alta confianza ligados a los hallazgos del caso; cada coincidencia es un defecto real que se corrige en el mismo cambio, por lo que no se tolera ninguno.
+- **Bloquea o avisa:** las reglas propias bloquean; el conjunto público `p/javascript` corre en un paso aparte que solo avisa (`continue-on-error`).
+  - **Razón:** una regla genérica que aún no se calibró contra este código puede dar falsos positivos, y un bloqueo por ruido enseña a ignorar el gate. Entra como aviso y pasa a bloquear por acuerdo del equipo después de revisar sus resultados.
+- **Etapa:** en cada pull request hacia `main` y en cada push a `main`.
+  - **Razón:** el análisis es rápido, determinista y no necesita la aplicación desplegada, así que pertenece a CI; en pull request detecta antes de fusionar y en `main` cubre los cambios directos.
+- **Alcance:** solo `src/`.
+  - **Razón:** es el código que se despliega; las pruebas simulan a propósito errores con rutas internas y generarían falsos positivos.
 
 > Un job fallido deja el run en rojo, pero para impedir la fusión de un pull request se requiere además una regla de protección de rama en GitHub que marque esos checks como obligatorios. Esa regla no afecta los cambios que llegan a `main` por medios que no pasen por ella (por ejemplo, pushes directos con permisos de administrador).
 

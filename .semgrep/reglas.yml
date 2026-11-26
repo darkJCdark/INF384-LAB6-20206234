@@ -1,0 +1,25 @@
+# Reglas SAST propias, de alta confianza (requisito 5.4). Una coincidencia bloquea el pipeline.
+rules:
+  - id: respuesta-con-detalle-interno-de-error
+    languages: [javascript]
+    severity: ERROR
+    message: >-
+      La respuesta HTTP incluye el stack trace o el mensaje interno de un error
+      (hallazgo 2). Responder un mensaje fijo y registrar el detalle con console.error.
+    patterns:
+      - pattern-either:
+          - pattern-inside: $RES.json(...)
+          - pattern-inside: $RES.send(...)
+      - pattern-either:
+          - pattern: $ERR.stack
+          - pattern: $ERR.message
+
+  - id: evaluacion-dinamica-de-codigo
+    languages: [javascript]
+    severity: ERROR
+    message: >-
+      Evaluación dinámica de código con eval o new Function; permitiría ejecutar
+      como código un texto recibido.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
