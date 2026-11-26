@@ -48,7 +48,19 @@ function listaRequisitos(codigos) {
   return _.join(_.sortBy(codigos), ', ');
 }
 
+// DEMOSTRACIÓN (rama demo-cobertura-roja, no se fusiona): función nueva sin pruebas.
+function resumenMalla(cursos) {
+  const obligatorios = cursos.filter((curso) => curso.type === 'obligatorio');
+  const electivos = cursos.filter((curso) => curso.type === 'electivo');
+  const creditos = totalCreditos(cursos);
+  if (creditos === 0) {
+    return 'Sin cursos';
+  }
+  return `${obligatorios.length} obligatorios, ${electivos.length} electivos, ${creditos} créditos`;
+}
+
 module.exports = {
+  resumenMalla,
   formatearNombre,
   formatearCreditos,
   formatearCiclo,
