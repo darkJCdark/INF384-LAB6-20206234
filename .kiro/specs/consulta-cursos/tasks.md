@@ -11,7 +11,7 @@
   - Tests para 2.1 y 2.2
   - _Requisitos: 2.1, 2.2_
 
-- [ ] 3. Middleware de manejo de errores
+- [x] 3. Middleware de manejo de errores
   - Respuesta genérica para errores no controlados
   - Test que simula un error del repositorio y verifica el 500 sin stack trace ni rutas
   - _Requisitos: 3.1_

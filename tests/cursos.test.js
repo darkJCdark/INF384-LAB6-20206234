@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
+const repositorio = require('../src/data/repositorio');
 
 describe('GET /cursos', () => {
   // Req 1.1 — devuelve todos los cursos con los campos requeridos
@@ -138,5 +139,45 @@ describe('GET /cursos', () => {
       expect(res.status).toBe(400);
       expect(res.body).toEqual({ error: 'ciclo debe ser un entero entre 5 y 10' });
     });
+  });
+});
+
+// Req 3.1 — middleware de errores no controlados
+describe('Middleware de errores no controlados', () => {
+  let listarOriginal;
+
+  beforeEach(() => {
+    listarOriginal = repositorio.listar;
+  });
+
+  afterEach(() => {
+    repositorio.listar = listarOriginal;
+  });
+
+  test('responde 500 con { error: "error interno" } cuando el repositorio lanza un error', async () => {
+    repositorio.listar = () => {
+      throw new Error('fallo simulado del repositorio en /home/user/app/src/data/repositorio.js:12:5');
+    };
+
+    const res = await request(app).get('/cursos');
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: 'error interno' });
+  });
+
+  test('la respuesta no expone stack trace ni rutas de archivo', async () => {
+    repositorio.listar = () => {
+      const err = new Error('internal failure');
+      throw err;
+    };
+
+    const res = await request(app).get('/cursos');
+    const bodyText = JSON.stringify(res.body);
+
+    // No debe contener patrones típicos de stack traces
+    expect(bodyText).not.toMatch(/\bat\b/);        // líneas "at ..."
+    expect(bodyText).not.toMatch(/\.js:/);          // referencias a archivos JS
+    expect(bodyText).not.toMatch(/\\/);             // separadores de ruta Windows
+    expect(bodyText).not.toMatch(/\//);             // separadores de ruta Unix (excepto la clave "error")
   });
 });

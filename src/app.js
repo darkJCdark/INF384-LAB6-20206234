@@ -13,4 +13,11 @@ app.get('/health', (req, res) => {
 
 app.use('/cursos', require('./routes/cursos'));
 
+// Middleware de manejo de errores no controlados (Req 3.1).
+// Debe registrarse después de todas las rutas y tener exactamente 4 argumentos.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  res.status(500).json({ error: 'error interno' });
+});
+
 module.exports = app;
