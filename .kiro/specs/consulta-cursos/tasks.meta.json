@@ -1,0 +1,17 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Implementar `GET /cursos` con filtro por ciclo": [
+      {
+        "executionId": "60d7ec1a-fd23-4a7d-8ecf-bd71e6e32d14",
+        "chatSessionId": "sess_da295129-76fb-4a8c-b453-2e0083d86ea0",
+        "timestamp": 1795730460957
+      },
+      {
+        "executionId": "60d7ec1a-fd23-4a7d-8ecf-bd71e6e32d14",
+        "chatSessionId": "sess_da295129-76fb-4a8c-b453-2e0083d86ea0",
+        "timestamp": 1795730601425
+      }
+    ]
+  }
+}
