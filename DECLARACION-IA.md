@@ -21,13 +21,17 @@ Alumno: 20206234 · Fecha: 26/11/2026
   - el spec guiado (paso 1) y el ajuste de campos de `GET /cursos`;
   - los ajustes finales de `requirements.md` y `design.md` de `habilitados`;
   - la implementación de `POST /habilitados` (repositorio, ruta, validaciones y manejo de errores), sus pruebas y las marcas de `tasks.md`;
-  - `ci.yml` con los gates, `jest.config.js`, la actualización de `lodash`, el retiro de la clave de `config/ejemplo.env`, `.gitleaksignore`, `TRAZABILIDAD.md` y el borrador de esta declaración.
+  - `ci.yml` con los gates, `jest.config.js`, la actualización de `lodash`, el retiro de la clave de `config/ejemplo.env`, `.gitleaksignore`, `TRAZABILIDAD.md` y el borrador de esta declaración;
+  - el gate de SAST (`.semgrep/reglas.yml` y el job `sast`), con el criterio 5.4, la tabla hallazgo → requisito de `requirements.md`, la sección del gate en `design.md` y la tarea 4 de `tasks.md`;
+  - la agrupación de casos en `tests/cursos.test.js` para eliminar las líneas duplicadas que marcaba SonarCloud;
+  - los cambios de demostración de los pull requests #1 y #2, que no se fusionaron.
 - Me ayudó a interpretar los resultados de los runs de GitHub Actions.
 
 ## Qué hice yo
 
 - Aprobé o rechacé cada cambio antes de que se aplicara, y decidí qué correcciones pedir a Kiro.
 - Ejecuté Kiro y los comandos, e hice todos los commits y push; ninguna IA hizo commits ni push.
+- Creé las ramas de demostración y abrí y cerré sus pull requests sin fusionarlos.
 - Revisé cada run en GitHub Actions y reuní los links de evidencia en rojo y en verde.
 
 Puedo presentar el historial de la conversación con Claude y de las sesiones de Kiro si se solicita.
