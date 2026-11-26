@@ -16,7 +16,7 @@
   - Test que simula un error del repositorio y verifica el 500 sin stack trace ni rutas
   - _Requisitos: 3.1_
 
-- [ ] 4. Gate de cobertura
+- [x] 4. Gate de cobertura
   - Configurar en `jest.config.js` un umbral de 80 % de cobertura de líneas
   - Ejecutar las pruebas con cobertura en `.github/workflows/ci.yml`
   - _Requisitos: 4.1_
