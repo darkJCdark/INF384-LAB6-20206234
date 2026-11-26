@@ -1,0 +1,4 @@
+# Clave de ejemplo CATALOGO_API_KEY en config/ejemplo.env (commit inicial 7506fec).
+# Se retiró del archivo el 26/11/2026; queda en el historial, que no se reescribe.
+# Rotación: pendiente/simulada (no hay acceso al proveedor de la clave). Responsable: 20206234.
+7506fecff32b342baaa4aa5dcb595bb5ccc75634:config/ejemplo.env:generic-api-key:4
