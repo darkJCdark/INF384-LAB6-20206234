@@ -39,8 +39,22 @@ API REST de solo lectura sobre los datos de `data/cursos.json`, cargados en memo
 | --- | --- |
 | `ciclo` inválido | `400 { "error": "ciclo debe ser un entero entre 5 y 10" }` |
 | Código inexistente | `404 { "error": "curso no encontrado" }` |
+| Error no controlado | `500 { "error": "error interno" }` |
+
+El error no controlado se atiende en un middleware de errores en `src/app.js`, registrado después de las rutas. La respuesta no incluye el mensaje original, el stack trace ni rutas de archivos, porque exponen detalles internos del servicio.
 
 ## Estrategia de pruebas
 
 - Tests de rutas con supertest, uno o más por criterio de aceptación.
 - Tests de `repositorio.js` con los datos reales de `data/cursos.json`.
+- Para 3.1, un test simula que el repositorio lanza un error y comprueba el código 500, el cuerpo exacto y que no se exponen detalles internos.
+
+## Gates
+
+| Gate | Herramienta y umbral | Bloquea / avisa | Etapa |
+| --- | --- | --- | --- |
+| Cobertura (4.1) | Jest, cobertura de líneas mínima de 80 % | Bloquea | Pull request y `main` |
+
+- **Umbral:** la política de TI exige que la cobertura de líneas no baje de 80 %.
+- **Bloquea:** un aviso permitiría que un cambio que incumple la política llegue a `main`.
+- **Etapa:** en el pull request se detecta antes de fusionar; en `main` se verifican también los cambios que entran por push directo.
