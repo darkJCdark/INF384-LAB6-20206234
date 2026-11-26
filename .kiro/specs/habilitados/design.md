@@ -57,7 +57,7 @@ Body: { "aprobados": [<código>, ...] }
 
 **Responsabilidades:**
 
-1. Verificar que el `Content-Type` es `application/json`.
+1. Verificar que el `Content-Type` es `application/json` revisando directamente el encabezado `req.headers['content-type']` (se admiten parámetros como `charset`). No se usa `req.is()`, porque sin cuerpo devuelve `null` y no distingue los casos 1 y 1b.
 2. Delegar el parseo del JSON a `express.json()` (ya configurado en `app.js`).
 3. Validar que `aprobados` existe, es un arreglo, no supera 100 elementos y cada elemento cumple la regex `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$`.
 4. Deduplicar los códigos con un `Set`.
@@ -113,7 +113,7 @@ El middleware de error existente se actualiza (ver sección Error Handling).
 
 | Campo | Tipo | Restricciones |
 |---|---|---|
-| `aprobados` | `Array<string>` | Obligatorio. Máximo 100 elementos. Cada elemento debe cumplir `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$`. |
+| `aprobados` | `Array<string>` | Obligatorio. Máximo 100 elementos (contados antes de deduplicar). Cada elemento debe cumplir `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$`. |
 
 ### Salida — elemento del arreglo respuesta
 
@@ -144,17 +144,18 @@ Los siguientes casos no están cubiertos explícitamente en los requisitos. La t
 
 | # | Situación | Código HTTP | Cuerpo JSON | Razón de la decisión |
 |---|---|---|---|---|
-| 1 | Cuerpo ausente (sin body) | 400 | `{"error":"aprobados debe ser un arreglo"}` | `express.json()` deja `req.body` como `undefined`; la validación de tipo ya cubre este caso sin lógica adicional. |
+| 1 | Cuerpo ausente — con `Content-Type: application/json` | 400 | `{"error":"aprobados debe ser un arreglo"}` | El cliente declara JSON pero no envía `aprobados`; el mensaje le indica el dato que falta. |
+| 1b | Cuerpo ausente — sin `Content-Type: application/json` | 400 | `{"error":"Content-Type debe ser application/json"}` | El router verifica el header antes de cualquier otra validación; las solicitudes sin ese header no llegan al validador de cuerpo. |
 | 2 | JSON mal formado | 400 | `{"error":"el cuerpo debe ser JSON válido"}` | `express.json()` lanza un `SyntaxError` con `status 400`; el middleware de error lo intercepta antes del manejador genérico 500, diferenciando error de cliente de error de servidor. |
-| 3 | `Content-Type` distinto de `application/json` | 400 | `{"error":"Content-Type debe ser application/json"}` | Sin `Content-Type: application/json`, `express.json()` no parsea y `req.body` queda `undefined`; verificar el header antes de cualquier otra validación garantiza el mensaje correcto. |
+| 3 | `Content-Type` distinto de `application/json` | 400 | `{"error":"Content-Type debe ser application/json"}` | El router verifica el header antes de cualquier otra validación; las solicitudes sin ese header no pasan al validador de cuerpo. |
 | 4 | Campo `aprobados` ausente o no es arreglo | 400 | `{"error":"aprobados debe ser un arreglo"}` | Se rechaza antes de iterar para evitar excepciones en tiempo de ejecución. |
 | 5 | Lista vacía `[]` | 200 | Arreglo con cursos sin prerrequisitos | Estado válido — estudiante en primer ciclo; Req 1.8 lo define explícitamente. |
 | 6 | Elementos que no son texto o no cumplen la regex | 400 | `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` (sin reflejar el valor recibido) | Se evita la reflexión de entrada arbitraria en la respuesta para prevenir la exposición de payloads maliciosos. |
 | 7 | Códigos en minúsculas o con espacios (p. ej. `"1inf25"`, `" 1INF25"`) | 400 | Mismo mensaje que el caso anterior | No se normalizan; la regex es estricta para evitar ambigüedad. |
 | 8 | Código con formato válido inexistente en el Repositorio | 200 | Resultado calculado ignorando el código desconocido | La malla puede cambiar; un código retirado no debe bloquear la consulta. Req 2.5. |
-| 9 | Códigos duplicados en `aprobados` | 200 | Resultado calculado tras deduplicar | El estudiante no puede aprobar el mismo curso dos veces; duplicados no aportan información. Se dedupliccan con un `Set`; cuentan como 1 elemento para el límite de 100. |
-| 10 | Más de 100 elementos (antes de deduplicar) | 400 | `{"error":"aprobados admite como máximo 100 códigos"}` | La verificación del límite ocurre sobre el arreglo recibido, antes de deduplicar, para ser O(1) y detectar abusos inmediatamente. |
-| 11 | Cuerpo que supera 50 KB | 413 | `{"error":"el cuerpo supera el tamaño máximo permitido"}` | `express.json({ limit: '50kb' })` rechaza el cuerpo automáticamente; 50 KB es más de 1000 veces el tamaño máximo esperado (100 códigos × ~8 bytes), por lo que no afecta el uso legítimo. |
+| 9 | Códigos duplicados en `aprobados` | 200 (si la longitud del arreglo recibido ≤ 100) | Resultado calculado tras deduplicar | Cada elemento recibido cuenta individualmente para el límite; la deduplicación con `Set` ocurre después de verificar que la longitud está dentro del límite. |
+| 10 | Más de 100 elementos (antes de deduplicar) | 400 | `{"error":"aprobados admite como máximo 100 códigos"}` | Cada elemento recibido cuenta individualmente para el límite, incluidos los duplicados. La verificación ocurre sobre el arreglo recibido, antes de deduplicar. |
+| 11 | Cuerpo que supera 50 KB | 413 | `{"error":"el cuerpo supera el tamaño máximo permitido"}` | El tamaño máximo es 50 KB. 100 códigos con el formato más largo (`1INF25`) y el overhead de JSON (`["1INF25",...]`) ocupan aproximadamente 915 bytes. 5000 códigos ocupan aproximadamente 45 KB, por debajo del límite, por lo que una lista de 5000 elementos llega al validador y recibe el 400 del Paso 5 (límite de 100 elementos), no el 413. El 413 se activa con cuerpos maliciosos que superen los 50 KB. Este código 413 amplía los códigos HTTP ya presentes en el proyecto (200, 400, 404, 500); se justifica porque la condición (cuerpo demasiado grande) es distinta de una entrada mal formada (400) y no es un error del servidor (500). |
 | 12 | Códigos en `aprobados` que no cumplen sus propios prerrequisitos (inconsistencia académica) | 200 | Resultado calculado tal como se declaró | El endpoint responde qué está habilitado dado lo declarado; no es responsable de auditar si la lista es académicamente posible. |
 | 13 | Orden de los cursos en la respuesta | — | Orden de inserción del `Map` del Repositorio | Orden estable y determinista sin coste adicional. Los clientes no deben depender del orden, pero la respuesta debe ser reproducible. |
 
@@ -164,13 +165,13 @@ El siguiente orden es obligatorio. Cada paso define qué se verifica, el error q
 
 | Paso | Qué se verifica | Error emitido | Razón |
 |---|---|---|---|
-| 1 | `Content-Type: application/json` presente | 400 `{"error":"Content-Type debe ser application/json"}` | Si no es JSON, `express.json()` no parsea; verificar primero evita confusión en el mensaje de error. |
-| 2 | Parseo del JSON por `express.json()` | 400 `{"error":"el cuerpo debe ser JSON válido"}` si lanza `SyntaxError` | Diferencia error de cliente de error de servidor antes de cualquier lógica de negocio. |
-| 3 | Tamaño del cuerpo | 413 `{"error":"el cuerpo supera el tamaño máximo permitido"}` si supera 50 KB | `express.json({ limit: '50kb' })` lo hace automáticamente; el middleware de error captura el 413. |
+| 1 | `Content-Type: application/json` presente | 400 `{"error":"Content-Type debe ser application/json"}` | El router verifica el header antes de cualquier otra lógica. Las solicitudes sin ese header no pasan al validador de cuerpo. |
+| 2 | Tamaño del cuerpo | 413 `{"error":"el cuerpo supera el tamaño máximo permitido"}` | `express.json({ limit: '50kb' })` rechaza el cuerpo antes de intentar parsearlo si supera el límite. El middleware de error captura el 413. |
+| 3 | Parseo del JSON | 400 `{"error":"el cuerpo debe ser JSON válido"}` si lanza `SyntaxError` | Solo para solicitudes con `Content-Type: application/json` que pasaron el paso 2. Diferencia error de cliente de error de servidor. |
 | 4 | `aprobados` presente y es arreglo | 400 `{"error":"aprobados debe ser un arreglo"}` | Necesario antes de iterar. |
-| 5 | Longitud ≤ 100 | 400 `{"error":"aprobados admite como máximo 100 códigos"}` | Verificación O(1) sobre el arreglo recibido, antes de iterar sobre los elementos. |
-| 6 | Cada elemento es cadena que cumple la regex | 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` | Una sola pasada, falla rápido al primer elemento inválido. |
-| 7 | Deduplicar con `Set` | — | Los duplicados no aportan; operación O(n). |
+| 5 | Longitud ≤ 100 (sobre el arreglo recibido, antes de deduplicar) | 400 `{"error":"aprobados admite como máximo 100 códigos"}` | Verificación O(1); cada elemento recibido cuenta, incluidos los duplicados. |
+| 6 | Cada elemento es cadena que cumple la regex `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$` | 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` | Una sola pasada, falla rápido al primer elemento inválido. |
+| 7 | Deduplicar con `Set` | — | Elimina duplicados antes del cálculo; operación O(n), solo se ejecuta si todos los elementos son válidos. |
 | 8 | Calcular habilitados consultando el Repositorio | — | Lógica de negocio; solo se ejecuta si todas las validaciones pasaron. |
 
 ## Error Handling
@@ -214,159 +215,105 @@ app.use((err, req, res, next) => {
 | Elemento con formato inválido | 400 | `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` |
 | Error no controlado | 500 | `{"error":"error interno"}` |
 
-## Correctness Properties
-
-*Una propiedad es una característica o comportamiento que debe mantenerse verdadero en todas las ejecuciones válidas del sistema. Las propiedades sirven como puente entre las especificaciones legibles por humanos y las garantías de corrección verificables automáticamente.*
-
-Del análisis de los criterios de aceptación se identificaron las siguientes propiedades universales susceptibles de verificación mediante pruebas basadas en propiedades.
-
-### Property 1: Inclusión correcta de cursos habilitados
-
-*Para cualquier* conjunto de códigos aprobados válidos, todo curso del repositorio que no figure en dicho conjunto y cuyos requisitos previos estén todos contenidos en él debe aparecer en la respuesta.
-
-**Validates: Requirements 1.1, 1.4, 1.5**
-
-### Property 2: Exclusión de cursos ya aprobados
-
-*Para cualquier* conjunto de códigos aprobados válidos, ningún curso cuyo `id` figure en dicho conjunto debe aparecer en la respuesta.
-
-**Validates: Requirements 1.6**
-
-### Property 3: Exclusión de cursos con prerrequisitos no satisfechos
-
-*Para cualquier* conjunto de códigos aprobados válidos, ningún curso cuyo arreglo de requisitos previos contenga al menos un elemento no presente en dicho conjunto debe aparecer en la respuesta.
-
-**Validates: Requirements 1.7**
-
-### Property 4: Estructura de cada objeto en la respuesta
-
-*Para cualquier* conjunto de códigos aprobados válidos, cada objeto del arreglo respuesta debe contener exactamente los campos `id`, `name`, `credits`, `cycle` y `type`, y no debe contener el campo `prerequisites`.
-
-**Validates: Requirements 1.9**
-
-### Property 5: Rechazo de cualquier valor no-arreglo en `aprobados`
-
-*Para cualquier* valor que no sea un arreglo (incluyendo `null`, cadenas, números, objetos y booleanos) asignado al campo `aprobados`, la respuesta debe ser 400 con el cuerpo `{"error":"aprobados debe ser un arreglo"}`.
-
-**Validates: Requirements 2.3**
-
-### Property 6: Rechazo de códigos con formato inválido sin reflejar el valor
-
-*Para cualquier* cadena que no cumpla la expresión regular `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$` y sea enviada como elemento de `aprobados`, la respuesta debe ser 400 con el cuerpo `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` y el cuerpo de la respuesta no debe contener el valor enviado.
-
-**Validates: Requirements 2.4**
-
-### Property 7: Rechazo de arreglos con más de 100 elementos
-
-*Para cualquier* arreglo `aprobados` cuya longitud sea estrictamente mayor que 100, la respuesta debe ser 400 con el cuerpo `{"error":"aprobados admite como máximo 100 códigos"}`.
-
-**Validates: Requirements 3.1**
-
 ## Gates de integración continua
 
 El pipeline de CI debe implementar tres gates que bloquean el merge cuando no se cumplen los criterios de calidad y seguridad definidos.
 
 ### Gate 1 — Análisis de composición de software (SCA)
 
-- **Herramienta:** `npm audit --audit-level=high`
-- **Umbral:** falla si existe al menos una vulnerabilidad de severidad alta o crítica.
-- **Comportamiento:** bloquea el merge; no es solo un aviso.
+- **Herramienta:** `npm audit --audit-level=high` sobre todas las dependencias, incluidas las de desarrollo (`--include=dev` si la versión de npm lo requiere).
+- **Umbral:** falla si existe al menos una vulnerabilidad de severidad alta o crítica. Las vulnerabilidades de severidad media o baja se muestran en el reporte pero no bloquean.
+  - **Razón del umbral:** la política de TI prohíbe vulnerabilidades altas y críticas; no prohíbe las medias ni las bajas, por lo que bloquear en esos niveles sería más restrictivo que la política.
+- **Bloquea o avisa:** bloquea el merge ante vulnerabilidades altas o críticas; solo reporta ante medias o bajas.
+  - **Razón:** la política exige que no lleguen a `main` dependencias con vulnerabilidades altas o críticas, y un aviso no lo impediría. Las medias y bajas solo se reportan porque la política no las prohíbe.
 - **Etapa:** en cada pull request hacia `main` y en cada push directo a `main`.
-- **Razón del umbral:** las vulnerabilidades altas y críticas tienen exploits conocidos o impacto grave; las de severidad media o baja se aceptan con deuda técnica registrada.
-- **Razón de la etapa:** detectar antes del merge reduce el coste de corrección; una vez que el código está en `main`, el remedio requiere un commit adicional.
+  - **Razón:** detectar antes del merge reduce el coste de corrección; correr también en push a `main` cubre los cambios directos que no pasan por un PR.
 
 ### Gate 2 — Detección de secretos
 
-- **Herramienta:** `gitleaks detect`
-- **Modo de escaneo:** escaneo de commits nuevos en cada pull request (`--log-opts="origin/main..HEAD"`); escaneo completo del historial al crear el repositorio o manualmente cuando se sospecha una fuga.
-- **Umbral:** falla si detecta al menos un secreto.
-- **Comportamiento:** bloquea el merge.
-- **Etapa:** en cada pull request hacia `main`.
-- **Razón del modo incremental:** escanear solo commits nuevos mantiene el tiempo de ejecución bajo (menos de 5 s en PRs normales); el escaneo completo del historial se realiza una vez al configurar el repositorio.
-- **Procedimiento si un secreto ya está en el historial:** rotar la clave de inmediato (invalidar el valor comprometido en el proveedor del secreto), luego registrar el hallazgo en `.gitleaksignore` con un comentario que indique que la clave fue rotada y la fecha. No se reescribe el historial de git porque una reescritura en repositorios con múltiples colaboradores genera conflictos graves y el secreto puede seguir presente en forks o cachés de CI.
+- **Herramienta:** `gitleaks` en la versión fijada `v8.24.3`, que incluye el comando `gitleaks git`.
+- **Umbral:** falla si detecta al menos un hallazgo no registrado en `.gitleaksignore`.
+  - **Razón del umbral:** la política exige que no haya ningún secreto en el repositorio; un hallazgo no registrado indica un secreto activo o no evaluado.
+- **Bloquea o avisa:** bloquea el merge.
+  - **Razón:** la política no admite ningún secreto; un aviso que no bloquea permite que el problema llegue a main.
+- **Etapa:** en cada pull request hacia `main` y en cada push directo a `main`.
+  - **Razón de la etapa:** en pull request el secreto se detecta antes de fusionar; en push a `main` se revisan también los cambios directos que no pasan por un pull request, aunque en ese caso la detección ocurre cuando el cambio ya llegó a `main`.
+- **Modo de escaneo:** `fetch-depth: 0` en el checkout para clonar el historial completo, y `gitleaks git` para escanearlo en cada ejecución.
+  - **Razón:** la política prohíbe cualquier secreto en el repositorio; un escaneo que solo cubra commits nuevos puede pasar por alto uno introducido anteriormente.
+- **Procedimiento si un secreto ya está en el historial:** retirar el secreto del archivo que lo contenía, rotar la clave en el proveedor correspondiente (proceso externo al repositorio), y registrar únicamente el fingerprint exacto del hallazgo en `.gitleaksignore` con un comentario que indique el motivo y la fecha del registro. No se reescribe el historial de git.
 
 ### Gate 3 — Cobertura de líneas *(requisito de calidad)*
 
-- **Herramienta:** Jest con `--coverage --coverageThreshold='{"global":{"lines":80}}'`
+- **Herramienta:** Jest con `--coverage --coverageThreshold='{"global":{"lines":80}}'`.
 - **Umbral:** 80 % de líneas en el conjunto total de archivos del proyecto.
-- **Comportamiento:** bloquea el merge.
-- **Etapa:** en cada pull request hacia `main` y en cada push a `main`.
-- **Razón del umbral:** la política de TI establece 80 %; cualquier PR que baje la cobertura por debajo de ese umbral no puede mergearse.
-- **Razón de bloquear y no solo avisar:** un umbral que no bloquea no es un gate; la cobertura puede degradarse silenciosamente sin que nadie lo note hasta que el daño es acumulado.
+  - **Razón del umbral:** la política de TI establece 80 % como mínimo; cualquier PR que baje la cobertura por debajo de ese umbral no puede mergearse.
+- **Bloquea o avisa:** bloquea el merge.
+  - **Razón:** un umbral que no bloquea no es un gate; la cobertura puede degradarse silenciosamente sin que nadie lo note hasta que el daño es acumulado.
+- **Etapa:** en cada pull request hacia `main` y en cada push directo a `main`.
+  - **Razón:** detectar antes del merge evita que código sin cobertura suficiente llegue a la rama principal; correr también en push a `main` cubre los cambios directos.
+
+> Un job fallido deja el run en rojo, pero para impedir la fusión de un pull request se requiere además una regla de protección de rama en GitHub que marque esos checks como obligatorios. Esa regla no afecta los cambios que llegan a `main` por medios que no pasen por ella (por ejemplo, pushes directos con permisos de administrador).
 
 ## Testing Strategy
 
-Las pruebas se organizan en dos archivos dentro de `tests/`:
+Las pruebas se organizan en un archivo dentro de `tests/`:
 
 - **`tests/habilitados.test.js`**: pruebas de integración HTTP con `supertest` para los requisitos 1 a 4.
-- **`tests/repositorio.habilitados.test.js`**: pruebas unitarias y de propiedad para `repositorio.listarHabilitados`.
 
-Se usa **fast-check** como biblioteca de pruebas basadas en propiedades (PBT). Cada prueba de propiedad se configura con al menos 100 iteraciones.
+La biblioteca de pruebas es Jest con supertest.
 
 ### Requisito 1 — Lógica de habilitados
 
-| ID | Nombre del caso | Entrada | Resultado esperado |
-|---|---|---|---|
-| T1.1 | Respuesta exitosa con entrada válida | `POST /habilitados` con `aprobados: ["1INF25","1INF27","1INF49"]` | 200, cuerpo es un arreglo JSON |
-| T1.2 | Conteo exacto para entrada conocida | Misma entrada que T1.1 | La respuesta tiene exactamente 27 elementos |
-| T1.3 | Cursos específicos presentes en la respuesta | Misma entrada que T1.1 | La respuesta incluye los IDs `1INF29`, `1INF30`, `1INF31`, `1INF32` |
-| T1.4 | Curso con prerrequisitos satisfechos aparece | `aprobados: ["1INF25"]` | `1INF29` y `1INF30` están en la respuesta |
-| T1.5 | Curso sin prerrequisitos aparece si no está aprobado | `aprobados: []` | `1GES92` (sin prerrequisitos) está en la respuesta |
-| T1.6 | Curso aprobado no aparece en la respuesta | `aprobados: ["1INF25"]` | `1INF25` no está en la respuesta |
-| T1.7 | Curso con prerrequisito insatisfecho no aparece | `aprobados: []` | `1INF29` (requiere `1INF25`) no está en la respuesta |
-| T1.8 | Lista vacía devuelve solo cursos sin prerrequisitos | `aprobados: []` | Solo aparecen cursos con `prerequisites: []` en `cursos.json` |
-| T1.9 | Estructura de cada objeto en la respuesta | `aprobados: ["1INF25","1INF27","1INF49"]` | Cada objeto tiene `id`, `name`, `credits`, `cycle`, `type`; no tiene `prerequisites` |
-
-**Prueba de propiedad — Property 1, 2, 3 (combinada):**
-*Feature: habilitados, Property 1, 2, 3: inclusión y exclusión de cursos habilitados*
-Para cualquier subconjunto de IDs válidos del repositorio: todo curso en la respuesta tiene todos sus prerrequisitos en `aprobados` y no está en `aprobados`; y todo curso que cumple esa condición está en la respuesta.
-
-**Prueba de propiedad — Property 4:**
-*Feature: habilitados, Property 4: estructura de objetos en la respuesta*
-Para cualquier subconjunto de IDs válidos, cada objeto de la respuesta tiene exactamente los campos `id`, `name`, `credits`, `cycle`, `type`.
+| ID | Criterio | Nombre del caso | Entrada | Resultado esperado |
+|---|---|---|---|---|
+| T1.1 | Req 1.1 | Respuesta exitosa con entrada válida | `POST /habilitados` con `aprobados: ["1INF25","1INF27","1INF49"]` | 200, cuerpo es un arreglo JSON |
+| T1.2 | Req 1.2 | Conteo exacto para entrada conocida | Misma entrada que T1.1 | La respuesta tiene exactamente 27 elementos |
+| T1.3 | Req 1.3 | Cursos específicos presentes | Misma entrada que T1.1 | La respuesta incluye los IDs `1INF29`, `1INF30`, `1INF31`, `1INF32` |
+| T1.4 | Req 1.4 | Curso con prerrequisitos satisfechos aparece | `aprobados: ["1INF25"]` | `1INF29` y `1INF30` están en la respuesta |
+| T1.5 | Req 1.5 | Curso sin prerrequisitos aparece si no está aprobado | `aprobados: []` | `1GES92` (sin prerrequisitos) está en la respuesta |
+| T1.6 | Req 1.6 | Curso aprobado no aparece en la respuesta | `aprobados: ["1INF25"]` | `1INF25` no está en la respuesta |
+| T1.7 | Req 1.7 | Curso con prerrequisito insatisfecho no aparece | `aprobados: []` | `1INF29` (requiere `1INF25`) no está en la respuesta |
+| T1.8 | Req 1.8 | Lista vacía devuelve solo cursos sin prerrequisitos | `aprobados: []` | Solo aparecen cursos con `prerequisites: []` en `cursos.json` |
+| T1.9 | Req 1.9 | Estructura de cada objeto en la respuesta | `aprobados: ["1INF25","1INF27","1INF49"]` | Cada objeto tiene `id`, `name`, `credits`, `cycle`, `type`; no tiene `prerequisites` |
 
 ### Requisito 2 — Validación de entrada
 
-| ID | Nombre del caso | Entrada | Resultado esperado |
-|---|---|---|---|
-| T2.1a | Campo `aprobados` ausente | `{}` | 400 `{"error":"aprobados debe ser un arreglo"}` |
-| T2.1b | `aprobados` es una cadena | `{"aprobados":"1INF25"}` | 400 `{"error":"aprobados debe ser un arreglo"}` |
-| T2.2 | `Content-Type` incorrecto | `Content-Type: text/plain` | 400 `{"error":"Content-Type debe ser application/json"}` |
-| T2.3 | `aprobados` es `null` | `{"aprobados":null}` | 400 `{"error":"aprobados debe ser un arreglo"}` |
-| T2.4a | Elemento con XSS | `{"aprobados":["1INF30<script>"]}` | 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}`; cuerpo no contiene `<script>` |
-| T2.4b | Elemento en minúsculas | `{"aprobados":["1inf25"]}` | 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` |
-| T2.5 | Código válido inexistente | `{"aprobados":["XXXX99"]}` | 200, `XXXX99` ignorado |
+| ID | Criterio | Nombre del caso | Entrada | Resultado esperado |
+|---|---|---|---|---|
+| T2.1 | Req 2.1 | JSON mal formado | Cuerpo `{aprobados:[` (JSON inválido), `Content-Type: application/json` | 400 `{"error":"el cuerpo debe ser JSON válido"}` |
+| T2.2 | Req 2.2 | `Content-Type` incorrecto | `Content-Type: text/plain` con cuerpo válido | 400 `{"error":"Content-Type debe ser application/json"}` |
+| T2.3a | Req 2.3 | `aprobados` es una cadena | `{"aprobados":"1INF25"}` | 400 `{"error":"aprobados debe ser un arreglo"}` |
+| T2.3b | Req 2.3 | `aprobados` es `null` | `{"aprobados":null}` | 400 `{"error":"aprobados debe ser un arreglo"}` |
+| T2.3c | Req 2.3 | Campo `aprobados` ausente | `{}`, `Content-Type: application/json` | 400 `{"error":"aprobados debe ser un arreglo"}` |
+| T2.4a | Req 2.4 | Elemento con carácter no permitido | `{"aprobados":["1INF30<script>"]}` | 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}`; cuerpo no contiene `<script>` |
+| T2.4b | Req 2.4 | Elemento en minúsculas | `{"aprobados":["1inf25"]}` | 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` |
+| T2.4c | Req 2.4 | Elemento del arreglo no es texto (número) | `{"aprobados":[1,2,3]}` | 400 `{"error":"cada elemento de aprobados debe ser un código de curso válido"}` |
+| T2.5 | Req 2.5 | Código válido inexistente | `{"aprobados":["XXX999"]}` | 200; `XXX999` ignorado |
+| T2.caso1 | Caso no definido 1 | Cuerpo ausente con `Content-Type` JSON | Sin cuerpo, `Content-Type: application/json` | 400 `{"error":"aprobados debe ser un arreglo"}` |
+| T2.caso1b | Caso no definido 1b | Cuerpo ausente sin `Content-Type` | Sin cuerpo ni `Content-Type` | 400 `{"error":"Content-Type debe ser application/json"}` |
 
-**Prueba de propiedad — Property 5:**
-*Feature: habilitados, Property 5: rechazo de aprobados no-arreglo*
-Para cualquier valor no-arreglo en `aprobados` (null, string, número, objeto, booleano), la respuesta es 400 con el mensaje `"aprobados debe ser un arreglo"`.
-
-**Prueba de propiedad — Property 6:**
-*Feature: habilitados, Property 6: rechazo de códigos inválidos sin reflexión*
-Para cualquier string que no cumpla la regex, la respuesta es 400 con el mensaje fijo y el cuerpo no contiene el valor enviado.
+> Nota: `XXX999` cumple la expresión regular `^([0-9][A-Z]{3}[0-9]{2}|[A-Z]{3}[0-9]{3})$` (rama `[A-Z]{3}[0-9]{3}`).
 
 ### Requisito 3 — Límite de entrada
 
-| ID | Nombre del caso | Entrada | Resultado esperado |
-|---|---|---|---|
-| T3.1 | Arreglo de 101 elementos | 101 códigos con formato válido | 400 `{"error":"aprobados admite como máximo 100 códigos"}` |
-| T3.2 | Arreglo de exactamente 100 elementos | 100 códigos con formato válido | 200 |
-| T3.3 | Arreglo de 5000 elementos | 5000 códigos | 400 en menos de 1000 ms |
-
-**Prueba de propiedad — Property 7:**
-*Feature: habilitados, Property 7: rechazo de arreglos grandes*
-Para cualquier arreglo de longitud n > 100, la respuesta es 400 `{"error":"aprobados admite como máximo 100 códigos"}`.
+| ID | Criterio | Nombre del caso | Entrada | Resultado esperado |
+|---|---|---|---|---|
+| T3.1 | Req 3.1 | Arreglo de 101 elementos | 101 códigos con formato válido | 400 `{"error":"aprobados admite como máximo 100 códigos"}` |
+| T3.2 | Req 3.2 | Arreglo de exactamente 100 elementos | 100 códigos con formato válido | 200 |
+| T3.3 | Req 3.3 | Arreglo de 5000 elementos (tiempo de respuesta) | 5000 códigos con formato válido | 400 en menos de 1000 ms |
+| T3.extra | — | Duplicados: longitud recibida cuenta antes de deduplicar | Arreglo de 101 elementos donde 10 son duplicados (101 recibidos, 91 únicos) | 400 `{"error":"aprobados admite como máximo 100 códigos"}` |
+| T3.extra2 | — | Cuerpo superior a 50 KB | Cuerpo JSON de más de 50 KB | 413 `{"error":"el cuerpo supera el tamaño máximo permitido"}` |
 
 ### Requisito 4 — Errores internos
 
-| ID | Nombre del caso | Entrada / configuración | Resultado esperado |
-|---|---|---|---|
-| T4.1 | Error no controlado no expone stack trace | Mock de `repositorio.listarHabilitados` lanzando `new Error('fallo')` | 500 `{"error":"error interno"}`; cuerpo no contiene `stack`, rutas ni nombres de dependencias |
-| T4.2 | Error no controlado registra en `console.error` | Mismo mock + spy de `console.error` | `console.error` fue llamado con el objeto de error |
+| ID | Criterio | Nombre del caso | Entrada / configuración | Resultado esperado |
+|---|---|---|---|---|
+| T4.1 | Req 4.1 | Error no controlado no expone stack trace | Mock de `repositorio.listarHabilitados` lanzando `new Error('fallo')` | 500 `{"error":"error interno"}`; cuerpo no contiene `stack`, rutas ni nombres de dependencias |
+| T4.2 | Req 4.2 | Error no controlado registra en `console.error` | Mismo mock + spy de `console.error` | `console.error` fue llamado con el objeto de error |
 
 ### Configuración de cobertura
 
-Para mantener el Gate 3 activo, `jest.config.js` debe declarar el umbral de cobertura:
+Para mantener el Gate 3 activo, `jest.config.js` debe declarar el umbral:
 
 ```js
 coverageThreshold: {
