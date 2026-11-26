@@ -12,6 +12,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/cursos', require('./routes/cursos'));
+app.use('/habilitados', require('./routes/habilitados'));
 
 // Middleware de manejo de errores no controlados (Req 3.1).
 // Debe registrarse después de todas las rutas y tener exactamente 4 argumentos.

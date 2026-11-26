@@ -19,4 +19,12 @@ function obtener(codigo) {
   return porCodigo.get(codigo);
 }
 
-module.exports = { listar, listarPorCiclo, obtener };
+// Cursos no aprobados cuyos requisitos están todos en aprobadosSet.
+function listarHabilitados(aprobadosSet) {
+  return listar()
+    .filter((curso) => !aprobadosSet.has(curso.id)
+      && curso.prerequisites.every((codigo) => aprobadosSet.has(codigo)))
+    .map(({ id, name, credits, cycle, type }) => ({ id, name, credits, cycle, type }));
+}
+
+module.exports = { listar, listarPorCiclo, obtener, listarHabilitados };
