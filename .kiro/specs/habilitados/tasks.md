@@ -64,16 +64,16 @@ Plan de implementación para el endpoint `POST /habilitados`, que calcula qué c
   - [x] 2.5 Ejecutar `npx jest tests/habilitados.test.js --no-coverage` e informar los nombres exactos de las pruebas que fallan (expected) y las que ya pasan
     - _Requisitos: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2_
 
-- [ ] 3. Implementar validaciones de entrada, límite de 50 KB y manejo de errores
+- [x] 3. Implementar validaciones de entrada, límite de 50 KB y manejo de errores
   - Modificar `src/routes/habilitados.js`, `src/app.js` y `src/data/repositorio.js` según el diseño en `design.md` para que todas las pruebas del archivo `tests/habilitados.test.js` pasen. No debilitar ni eliminar pruebas.
-  - [ ] 3.1 Actualizar `app.use(express.json())` a `app.use(express.json({ limit: '50kb' }))` en `src/app.js`
+  - [x] 3.1 Actualizar `app.use(express.json())` a `app.use(express.json({ limit: '50kb' }))` en `src/app.js`
     - _Requisitos: 3.1_
-  - [ ] 3.2 Ampliar el middleware de error en `src/app.js`
+  - [x] 3.2 Ampliar el middleware de error en `src/app.js`
     - Interceptar `SyntaxError` con `err.status === 400` → responder 400 `{"error":"el cuerpo debe ser JSON válido"}`
     - Interceptar `err.status === 413 || err.type === 'entity.too.large'` → responder 413 `{"error":"el cuerpo supera el tamaño máximo permitido"}`
     - Para cualquier otro error: llamar `console.error(err)` y responder 500 `{"error":"error interno"}`
     - _Requisitos: 2.1, 4.1, 4.2_
-  - [ ] 3.3 Agregar las validaciones en `src/routes/habilitados.js` en el orden exacto del diseño
+  - [x] 3.3 Agregar las validaciones en `src/routes/habilitados.js` en el orden exacto del diseño
     - Paso 1: verificar `Content-Type: application/json` revisando `req.headers['content-type']`; si no → 400 `{"error":"Content-Type debe ser application/json"}`
     - Paso 2: verificar que `req.body.aprobados` existe y es arreglo; si no → 400 `{"error":"aprobados debe ser un arreglo"}`
     - Paso 3: verificar que `req.body.aprobados.length <= 100`; si no → 400 `{"error":"aprobados admite como máximo 100 códigos"}`
@@ -81,9 +81,9 @@ Plan de implementación para el endpoint `POST /habilitados`, que calcula qué c
     - Paso 5: deduplicar con `new Set(req.body.aprobados)`
     - Paso 6: llamar a `repositorio.listarHabilitados(aprobadosSet)` y responder 200
     - _Requisitos: 2.2, 2.3, 2.4, 3.1, 3.2, 3.3_
-  - [ ] 3.4 Ejecutar `npx jest tests/habilitados.test.js --no-coverage` y verificar que todas las pruebas pasan; si alguna falla, corregir la implementación sin modificar las pruebas
+  - [x] 3.4 Ejecutar `npx jest tests/habilitados.test.js --no-coverage` y verificar que todas las pruebas pasan; si alguna falla, corregir la implementación sin modificar las pruebas
     - _Requisitos: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2_
-  - [ ] 3.5 Ejecutar `npx jest --no-coverage` (suite completa) y verificar que las pruebas preexistentes siguen pasando
+  - [x] 3.5 Ejecutar `npx jest --no-coverage` (suite completa) y verificar que las pruebas preexistentes siguen pasando
     - _Requisitos: 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 4.1, 4.2_
 
 ## Notes
