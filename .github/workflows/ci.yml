@@ -6,7 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  # Pruebas y gate de cobertura (requisito 5.3): bloquea bajo 80 % de líneas.
   build:
     runs-on: ubuntu-latest
     steps:
@@ -20,5 +24,29 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Ejecutar pruebas
-        run: npm test
+      - name: Ejecutar pruebas con cobertura
+        run: npm test -- --coverage
+
+  # Gate SCA (requisito 5.1): bloquea con vulnerabilidades altas o críticas.
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Analizar dependencias
+        run: npm audit --audit-level=high
+
+  # Gate de secretos (requisito 5.2): escanea todo el historial y bloquea.
+  secretos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detectar secretos con gitleaks
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 git /repo --redact --verbose
