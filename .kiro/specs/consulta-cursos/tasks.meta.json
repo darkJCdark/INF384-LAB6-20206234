@@ -12,6 +12,18 @@
         "chatSessionId": "sess_da295129-76fb-4a8c-b453-2e0083d86ea0",
         "timestamp": 1795730601425
       }
+    ],
+    "2. Implementar `GET /cursos/:codigo`": [
+      {
+        "executionId": "376c78f6-ffcd-486b-b4b4-40b21e3bf38e",
+        "chatSessionId": "sess_bccc30e4-da4b-426f-a78b-66a237dc1821",
+        "timestamp": 1795730930113
+      },
+      {
+        "executionId": "376c78f6-ffcd-486b-b4b4-40b21e3bf38e",
+        "chatSessionId": "sess_bccc30e4-da4b-426f-a78b-66a237dc1821",
+        "timestamp": 1795730996730
+      }
     ]
   }
 }

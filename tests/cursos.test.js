@@ -59,6 +59,56 @@ describe('GET /cursos', () => {
     });
   });
 
+  // Req 2.1 — GET /cursos/:codigo con código existente
+  describe('GET /cursos/:codigo — código existente', () => {
+    test('responde 200 con el objeto completo incluyendo prerequisites con id y name', async () => {
+      // 1INF30 (Programación 3) tiene prerequisito 1INF25 (Programación 2)
+      const res = await request(app).get('/cursos/1INF30');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        id: '1INF30',
+        name: expect.any(String),
+        credits: expect.any(Number),
+        cycle: expect.any(Number),
+        type: expect.any(String),
+        prerequisites: expect.any(Array),
+      });
+    });
+
+    test('prerequisites incluye id y name de cada requisito', async () => {
+      // 1INF30 tiene prerequisites: ["1INF25"]
+      const res = await request(app).get('/cursos/1INF30');
+
+      expect(res.status).toBe(200);
+      expect(res.body.prerequisites.length).toBeGreaterThan(0);
+      for (const pre of res.body.prerequisites) {
+        expect(pre).toHaveProperty('id');
+        expect(pre).toHaveProperty('name');
+        expect(typeof pre.id).toBe('string');
+        expect(typeof pre.name).toBe('string');
+      }
+    });
+
+    test('curso sin requisitos devuelve prerequisites como arreglo vacío', async () => {
+      // 1GES92 no tiene prerequisites
+      const res = await request(app).get('/cursos/1GES92');
+
+      expect(res.status).toBe(200);
+      expect(res.body.prerequisites).toEqual([]);
+    });
+  });
+
+  // Req 2.2 — GET /cursos/:codigo con código inexistente
+  describe('GET /cursos/:codigo — código inexistente', () => {
+    test('responde 404 con { error: "curso no encontrado" }', async () => {
+      const res = await request(app).get('/cursos/NOEXISTE');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'curso no encontrado' });
+    });
+  });
+
   // Req 1.3 — ciclo inválido produce 400
   describe('con ?ciclo=N inválido', () => {
     test('?ciclo=4 (fuera de rango) → 400 con mensaje de error', async () => {
