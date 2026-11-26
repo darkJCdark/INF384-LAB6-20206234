@@ -25,7 +25,8 @@ app.use((err, req, res, next) => {
     return res.status(413).json({ error: 'el cuerpo supera el tamaño máximo permitido' });
   }
   console.error(err);
-  return res.status(500).json({ error: 'error interno' });
+  // DEMOSTRACIÓN (rama demo-4-1-sast-rojo, no se fusiona): reintroduce el hallazgo 2.
+  return res.status(500).json({ error: err.message, stack: err.stack });
 });
 
 module.exports = app;
